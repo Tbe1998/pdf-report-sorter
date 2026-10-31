@@ -1,0 +1,9 @@
+# 构建产物
+*.exe
+*.syso
+*.zip
+latest.json
+
+# 本地
+.DS_Store
+Thumbs.db

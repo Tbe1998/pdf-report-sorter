@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html,body { margin:0; padding:0; background:#0e1116; }
+  .win {
+    width: 830px; margin: 0 auto; font-family: "Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+    background:#F1F5F6; color:#16323A; position:relative;
+  }
+  .titlebar {
+    height: 34px; background:#E8EDEF; display:flex; align-items:center;
+    padding: 0 10px; border-bottom:1px solid #D3DEE1; gap:8px;
+  }
+  .titlebar .t { font-size:13px; color:#3B4E55; flex:1; }
+  .tb { width:14px; height:14px; border:1px solid #93A6AC; border-radius:2px;
+        display:flex; align-items:center; justify-content:center; font-size:10px; color:#5A6E75;}
+  .body { position:relative; height:850px; }
+  .hd { position:absolute; left:24px; top:18px; width:38px; height:38px; }
+  .h1 { position:absolute; left:76px; top:14px; font-size:21px; font-weight:700; color:#16323A;}
+  .h2 { position:absolute; left:77px; top:42px; font-size:13px; color:#6B8288; }
+  .card { position:absolute; left:16px; width:798px; background:#fff;
+          border:1px solid #E3EBED; border-radius:12px; }
+  .sec { position:absolute; font-size:14px; font-weight:600; color:#0F6675; }
+  .lab { position:absolute; font-size:15px; color:#16323A; }
+  .muted { position:absolute; font-size:13px; color:#6B8288; }
+  input.box { position:absolute; height:30px; border:1px solid #E3EBED; border-radius:7px;
+              background:#fff; font-size:15px; color:#16323A; padding:0 8px; font-family:inherit;}
+  .btn { position:absolute; height:38px; border-radius:9px; font-size:15px; font-family:inherit;
+         display:flex; align-items:center; justify-content:center; cursor:default; }
+  .btn.sm { height:30px; font-size:14px; border-radius:7px; }
+  .b-sec { background:#fff; border:1px solid #D3E0E3; color:#22454D; }
+  .b-pri { background:#0F6675; border:1px solid #0F6675; color:#fff; font-weight:600; }
+  .b-dan { background:#fff; border:1px solid #E8C9C5; color:#C0392B; }
+  .chk { position:absolute; font-size:15px; color:#16323A; display:flex; align-items:center; gap:7px;}
+  .box2 { width:15px; height:15px; border:1.5px solid #7E959B; border-radius:3px; background:#fff;}
+  .box2.on { background:#0F6675; border-color:#0F6675; position:relative; }
+  .box2.on:after { content:""; position:absolute; left:4px; top:1px; width:5px; height:9px;
+                   border-right:2px solid #fff; border-bottom:2px solid #fff; transform:rotate(40deg);}
+  .log { position:absolute; left:32px; top:534px; width:750px; height:250px; background:#fff;
+         border:1px solid #E3EBED; border-radius:8px; padding:10px 12px; font-size:13px;
+         line-height:1.65; color:#2A4249; overflow:hidden; font-family:"Cascadia Mono",Consolas,monospace;}
+  .log .ts { color:#8AA0A6; }
+  .log .kv { color:#0F6675; }
+  .status { position:absolute; left:16px; top:812px; font-size:13px; color:#6B8288;}
+  .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:#3BD6C2; margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="titlebar"><span class="t">PDF 日报分拣助手  v1.2.1</span><span class="tb">–</span><span class="tb">□</span><span class="tb">×</span></div>
+  <div class="body">
+    <img class="hd" src="icons/A-256.png">
+    <div class="h1">PDF 日报分拣助手</div>
+    <div class="h2">按文件名自动分拣到各项目文件夹  ·  v1.2.1</div>
+
+    <div class="card" style="top:84px;height:148px"></div>
+    <div class="sec" style="left:32px;top:96px">① 源文件夹  ·  PDF 打印机会把日报生成到这里</div>
+    <input class="box" style="left:32px;top:116px;width:670px" value="D:\打印输出\待分拣">
+    <div class="btn b-sec sm" style="left:710px;top:116px;width:88px">浏览…</div>
+    <div class="sec" style="left:32px;top:156px">② 默认目标文件夹  ·  规则没命中时用，留空则留在原地</div>
+    <input class="box" style="left:32px;top:176px;width:670px" value="D:\监测日报\待归档">
+    <div class="btn b-sec sm" style="left:710px;top:176px;width:88px">浏览…</div>
+
+    <div class="card" style="top:244px;height:150px"></div>
+    <div class="sec" style="left:32px;top:256px">③ 分拣规则  ·  关键词 => 项目文件夹</div>
+    <input class="box" style="left:32px;top:276px;width:460px" value="C:\Users\admin\AppData\Roaming\PDFFolderMover\rules.txt">
+    <div class="btn b-sec sm" style="left:500px;top:276px;width:78px">浏览…</div>
+    <div class="btn b-sec sm" style="left:586px;top:276px;width:90px">编辑规则</div>
+    <div class="btn b-sec sm" style="left:684px;top:276px;width:114px">重新加载</div>
+    <div class="muted" style="left:32px;top:312px">规则：已加载 4 条（点「编辑规则」修改后会自动重载）</div>
+    <div class="sec" style="left:32px;top:340px">④ 只处理包含</div>
+    <input class="box" style="left:146px;top:337px;width:140px;height:26px" value="日报">
+    <div class="lab" style="left:294px;top:340px;font-size:15px">的 PDF（留空=全部）</div>
+    <div class="lab" style="left:500px;top:340px;font-size:15px">稳定判定</div>
+    <input class="box" style="left:574px;top:337px;width:56px;height:26px" value="3">
+    <div class="lab" style="left:636px;top:340px;font-size:15px">秒</div>
+
+    <div class="btn b-pri" style="left:32px;top:412px;width:150px">开始分拣</div>
+    <div class="btn b-sec" style="left:190px;top:412px;width:100px">停止</div>
+    <div class="btn b-sec" style="left:298px;top:412px;width:130px">打开源文件夹</div>
+    <div class="btn b-sec" style="left:436px;top:412px;width:140px">打开默认目标</div>
+    <div class="btn b-dan" style="left:584px;top:412px;width:110px">退出程序</div>
+
+    <div class="chk" style="left:32px;top:468px"><span class="box2"></span>启动时也分拣已有 PDF</div>
+    <div class="chk" style="left:312px;top:468px"><span class="box2 on"></span>开机自动启动</div>
+    
+    <div class="card" style="top:500px;height:300px"></div>
+    <div class="sec" style="left:32px;top:512px">运行日志</div>
+    <div class="muted" style="left:130px;top:512px">同一份记录在 C:\Users\admin\AppData\Roaming\PDFFolderMover\app.log</div>
+    <div class="log">
+<span class="ts">20:14:07</span>  <span class="kv">程序启动，版本 v1.2.1</span><br>
+<span class="ts">20:14:07</span>  规则已加载：4 条<br>
+<span class="ts">20:14:07</span>  开始监控：D:\打印输出\待分拣（稳定判定 3 秒，规则 4 条）<br>
+<span class="ts">20:15:22</span>  已移动：地铁1号线停车场监测日报.pdf → [停车场] 地铁1号线<br>
+<span class="ts">20:16:03</span>  已移动：城西路隧道监测日报.pdf → [城西路] 城西<br>
+<span class="ts">20:16:41</span>  文件仍被占用，继续等待：跨江隧道监测日报.pdf<br>
+<span class="ts">20:16:49</span>  已移动：跨江隧道监测日报.pdf → [跨江] 跨江隧道<br>
+<span class="ts">20:17:02</span>  没有匹配的规则，留在原地：归档说明.pdf
+    </div>
+    <div class="status"><span class="dot"></span>状态：分拣中 …（规则 4 条）</div>
+  </div>
+</div>
+</body></html>
