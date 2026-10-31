@@ -653,7 +653,7 @@ func (a *guiApp) buildUI() {
 	a.hBtnQuit = btn("退出程序", 584, 412, 110, 38, idBtnQuit)
 
 	// 选项
-	a.hChkMonth = a.mk("BUTTON", "按月份分文件夹（26.9）", bsAutoCheck|wsTabStop, 32, 464, 260, 24, idChkMonth)
+	a.hChkMonth = a.mk("BUTTON", "按月份分文件夹", bsAutoCheck|wsTabStop, 32, 464, 260, 24, idChkMonth)
 	a.hChkExisting = a.mk("BUTTON", "启动时分拣已有 PDF", bsAutoCheck|wsTabStop, 300, 464, 230, 24, idChkExisting)
 	a.hChkAutorun = a.mk("BUTTON", "开机自动启动", bsAutoCheck|wsTabStop, 540, 464, 230, 24, idChkAutorun)
 	// 更新检查改为常开且无界面（地址写死，用户不可见）
