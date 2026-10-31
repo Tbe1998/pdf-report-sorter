@@ -53,6 +53,7 @@ func runSelfTest(console bool) {
 	_ = os.WriteFile(oldFile, []byte("%PDF old"), 0o644)
 
 	m := NewMover()
+	m.SetByMonth(true) // 自检同时覆盖"按月份建 26.10 子文件夹"
 	var logs []string
 	err = m.Start(src, 1, false, router, func(s string) { logs = append(logs, s) })
 	check(err == nil, "监控可以启动")
@@ -62,6 +63,7 @@ func runSelfTest(console bool) {
 	}
 
 	// 模拟 PDF 打印机：先建文件、分几次写入
+	monthA := filepath.Join(projA, "26.10")
 	nameA := "甲项目监测日报2026-10-30.pdf"
 	pA := filepath.Join(src, nameA)
 	f, ferr := os.Create(pA)
@@ -74,7 +76,7 @@ func runSelfTest(console bool) {
 		_ = f.Sync()
 		time.Sleep(600 * time.Millisecond)
 
-		_, earlyErr := os.Stat(filepath.Join(projA, nameA))
+		_, earlyErr := os.Stat(filepath.Join(monthA, nameA))
 		check(os.IsNotExist(earlyErr), "文件还在写入时不会被提前分拣")
 		_ = f.Close()
 	}
@@ -83,15 +85,20 @@ func runSelfTest(console bool) {
 	deadline := time.Now().Add(8 * time.Second)
 	movedA := false
 	for time.Now().Before(deadline) {
-		if _, err := os.Stat(filepath.Join(projA, nameA)); err == nil {
+		if _, err := os.Stat(filepath.Join(monthA, nameA)); err == nil {
 			movedA = true
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	check(movedA, "「甲项目」的日报被分到项目甲文件夹")
+	check(movedA, "「甲项目」的日报被分到项目甲\\26.10")
+	if st, err := os.Stat(monthA); err == nil && st.IsDir() {
+		check(true, "月份文件夹 26.10 自动创建")
+	} else {
+		check(false, "月份文件夹 26.10 自动创建")
+	}
 	if movedA {
-		b, err := os.ReadFile(filepath.Join(projA, nameA))
+		b, err := os.ReadFile(filepath.Join(monthA, nameA))
 		want := len("%PDF-1.7\n") + 200000 // 9 + 200000 = 200009
 		check(err == nil && strings.HasPrefix(string(b), "%PDF-1.7") && len(b) == want,
 			fmt.Sprintf("移动后内容完整（%d/%d 字节）", len(b), want))
@@ -113,6 +120,7 @@ func runSelfTest(console bool) {
 
 	check(existsFile(oldFile), "启动前就有的 PDF 没有被乱搬")
 	check(!existsFile(filepath.Join(projA, "启动前就有的甲项目.pdf")), "启动前的旧文件没有进项目文件夹")
+	check(existsFile(oldFile), "旧文件也没被塞进月份文件夹")
 
 	mvt, flt, _ := m.Stats()
 	check(mvt == 2 && flt == 0, fmt.Sprintf("统计正确（成功 %d、失败 %d）", mvt, flt))

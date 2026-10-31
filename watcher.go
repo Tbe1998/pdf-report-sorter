@@ -12,6 +12,7 @@ import (
 
 // Mover 轮询监听源文件夹，等 PDF 完全写完后，按规则移动到对应项目文件夹。
 type Mover struct {
+	byMonth bool // 是否按月份再分一层子文件夹（26.9）
 	mu      sync.Mutex
 	src     string
 	settle  time.Duration
@@ -53,6 +54,13 @@ func (m *Mover) Stats() (moved, failed, skipped int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.moved, m.failed, m.skipped
+}
+
+// SetByMonth 设置是否按月份归档（目标文件夹\26.9）。运行中切换也会立刻生效。
+func (m *Mover) SetByMonth(on bool) {
+	m.mu.Lock()
+	m.byMonth = on
+	m.mu.Unlock()
 }
 
 func (m *Mover) SetRouter(r *Router) {
@@ -171,7 +179,7 @@ func (m *Mover) scanOnce(now time.Time) {
 	}()
 
 	m.mu.Lock()
-	src, router := m.src, m.router
+	src, router, byMonth := m.src, m.router, m.byMonth
 	m.mu.Unlock()
 	if router == nil {
 		return
@@ -252,6 +260,24 @@ func (m *Mover) scanOnce(now time.Time) {
 		}
 
 		delete(m.warned, name)
+		destLabel := filepath.Base(destDir)
+		if byMonth {
+			monthDir, fromName := MonthDirFor(destDir, name, info.ModTime())
+			if err := os.MkdirAll(monthDir, 0o755); err != nil {
+				m.mu.Lock()
+				m.failed++
+				m.mu.Unlock()
+				m.logf(fmt.Sprintf("创建月份文件夹失败：%s（%v）", monthDir, err))
+				continue
+			}
+			destDir = monthDir
+			destLabel = destLabel + "\\" + filepath.Base(monthDir)
+			if !fromName && !m.warned["mtime:"+name] {
+				m.warned["mtime:"+name] = true
+				m.logf(fmt.Sprintf("文件名里没有日期，按文件时间归到 %s：%s",
+					filepath.Base(monthDir), name))
+			}
+		}
 		target := uniqueTarget(destDir, name)
 		if err := moveFile(full, target); err != nil {
 			m.mu.Lock()
@@ -264,7 +290,7 @@ func (m *Mover) scanOnce(now time.Time) {
 		m.mu.Lock()
 		m.moved++
 		m.mu.Unlock()
-		m.logf(fmt.Sprintf("已移动：%s → [%s] %s", name, label, filepath.Base(destDir)))
+		m.logf(fmt.Sprintf("已移动：%s → [%s] %s", name, label, destLabel))
 		delete(m.state, name)
 	}
 	// 清理已经消失的记录

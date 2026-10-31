@@ -138,6 +138,7 @@ const (
 	idEditDst
 	idBtnDst
 	idEditSettle
+	idChkMonth
 	idChkExisting
 	idChkAutorun
 	idChkAutoUpd
@@ -226,28 +227,28 @@ type guiApp struct {
 	scale  float64
 	font   syscall.Handle
 
-	hSrc, hBtnSrc, hDst, hBtnDst, hSettle  syscall.Handle
-	hChkExisting, hChkAutorun, hChkAutoUpd syscall.Handle
-	hBtnStart, hBtnStop                    syscall.Handle
-	hBtnQuit                               syscall.Handle
-	hBtnOpenSrc, hBtnOpenDst               syscall.Handle
-	hLog, hStatus                          syscall.Handle
-	hRules, hBtnRules                      syscall.Handle
-	hBtnRulesEdit, hBtnRulesReload         syscall.Handle
-	hFilter, hLblRulesInfo                 syscall.Handle
-	th                                     theme
-	cards                                  []rect
-	editFrames                             []rect
-	sectionLabels                          []syscall.Handle
-	allButtons                             []syscall.Handle
-	minimized                              bool
-	logBuf                                 []string
-	router                                 *Router
-	rulesMod                               time.Time
-	tick                                   int
-	trayAdded                              bool
-	balloonShown                           bool
-	reallyQuit                             bool
+	hSrc, hBtnSrc, hDst, hBtnDst, hSettle             syscall.Handle
+	hChkMonth, hChkExisting, hChkAutorun, hChkAutoUpd syscall.Handle
+	hBtnStart, hBtnStop                               syscall.Handle
+	hBtnQuit                                          syscall.Handle
+	hBtnOpenSrc, hBtnOpenDst                          syscall.Handle
+	hLog, hStatus                                     syscall.Handle
+	hRules, hBtnRules                                 syscall.Handle
+	hBtnRulesEdit, hBtnRulesReload                    syscall.Handle
+	hFilter, hLblRulesInfo                            syscall.Handle
+	th                                                theme
+	cards                                             []rect
+	editFrames                                        []rect
+	sectionLabels                                     []syscall.Handle
+	allButtons                                        []syscall.Handle
+	minimized                                         bool
+	logBuf                                            []string
+	router                                            *Router
+	rulesMod                                          time.Time
+	tick                                              int
+	trayAdded                                         bool
+	balloonShown                                      bool
+	reallyQuit                                        bool
 }
 
 var (
@@ -652,8 +653,9 @@ func (a *guiApp) buildUI() {
 	a.hBtnQuit = btn("退出程序", 584, 412, 110, 38, idBtnQuit)
 
 	// 选项
-	a.hChkExisting = a.mk("BUTTON", "启动时也分拣已有 PDF", bsAutoCheck|wsTabStop, 32, 464, 270, 24, idChkExisting)
-	a.hChkAutorun = a.mk("BUTTON", "开机自动启动", bsAutoCheck|wsTabStop, 312, 464, 220, 24, idChkAutorun)
+	a.hChkMonth = a.mk("BUTTON", "按月份分文件夹（26.9）", bsAutoCheck|wsTabStop, 32, 464, 260, 24, idChkMonth)
+	a.hChkExisting = a.mk("BUTTON", "启动时分拣已有 PDF", bsAutoCheck|wsTabStop, 300, 464, 230, 24, idChkExisting)
+	a.hChkAutorun = a.mk("BUTTON", "开机自动启动", bsAutoCheck|wsTabStop, 540, 464, 230, 24, idChkAutorun)
 	// 更新检查改为常开且无界面（地址写死，用户不可见）
 	a.hChkAutoUpd = 0
 	a.cfg.AutoCheckUpd = true
@@ -679,6 +681,7 @@ func (a *guiApp) buildUI() {
 	a.setText(a.hRules, a.cfg.RulesPath)
 	a.setText(a.hFilter, a.cfg.Filter)
 	a.setText(a.hSettle, fmt.Sprintf("%d", a.cfg.SettleSec))
+	a.setCheck(a.hChkMonth, a.cfg.ByMonth)
 	a.setCheck(a.hChkExisting, a.cfg.MoveExisting)
 	if isAutoRun() {
 		a.setCheck(a.hChkAutorun, true)
@@ -828,6 +831,15 @@ func (a *guiApp) onCommand(id int32) {
 		a.shellOpen(a.getText(a.hDst))
 	case idBtnQuit:
 		a.quitApp()
+	case idChkMonth:
+		on := a.getCheck(a.hChkMonth)
+		a.mover.SetByMonth(on)
+		if on {
+			a.logLine("已开启按月份归档：目标文件夹\\26.9")
+		} else {
+			a.logLine("已关闭按月份归档：直接放进项目文件夹")
+		}
+		a.saveCfg()
 	case idChkAutorun:
 		a.applyAutoRun()
 	}
@@ -908,6 +920,7 @@ func (a *guiApp) saveCfg() {
 	a.cfg.TargetDir = a.getText(a.hDst)
 	a.cfg.RulesPath = a.getText(a.hRules)
 	a.cfg.Filter = a.getText(a.hFilter)
+	a.cfg.ByMonth = a.getCheck(a.hChkMonth)
 	a.cfg.MoveExisting = a.getCheck(a.hChkExisting)
 	a.cfg.AutoCheckUpd = true // 更新检查常开，界面上不提供开关
 	a.cfg.WinAutoRun = a.getCheck(a.hChkAutorun)
@@ -988,6 +1001,7 @@ func (a *guiApp) startMover(silent bool) {
 		}
 		return
 	}
+	a.mover.SetByMonth(a.cfg.ByMonth)
 	err := a.mover.Start(a.cfg.SourceDir, a.cfg.SettleSec, a.cfg.MoveExisting, a.router, a.logLine)
 	if err != nil {
 		a.logLine("启动失败：" + err.Error())

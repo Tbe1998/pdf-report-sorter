@@ -21,6 +21,7 @@ func main() {
 	settle := flag.Int("settle", 2, "稳定判定秒数")
 	moveOld := flag.Bool("move-existing", false, "搬移启动时已存在的 PDF")
 	watch := flag.Int("watch", 0, "运行多少秒后退出（0 表示一直运行）")
+	byMonth := flag.Bool("bymonth", true, "按月份归档（目标文件夹\\26.9）")
 	checkURL := flag.String("checkupdate", "", "检查更新并下载解包（测试用），传 latest.json 的网址")
 	flag.Parse()
 
@@ -76,6 +77,7 @@ func main() {
 	logf(fmt.Sprintf("已加载 %d 条规则", n))
 
 	m := NewMover()
+	m.SetByMonth(*byMonth)
 	if err := m.Start(*src, *settle, *moveOld, r, logf); err != nil {
 		fmt.Println("启动失败：" + err.Error())
 		os.Exit(1)

@@ -14,6 +14,7 @@ type Config struct {
 	Filter       string `json:"filter"`         // 只处理文件名包含该词的 PDF（可空）
 	SettleSec    int    `json:"settle_sec"`     // 文件大小/修改时间连续不变的秒数
 	MoveExisting bool   `json:"move_existing"`  // 启动时是否也搬移已存在的 PDF
+	ByMonth      bool   `json:"by_month"`       // 是否按月份再分一层子文件夹（26.9）
 	AutoStartMon bool   `json:"auto_start_mon"` // 打开窗口后自动开始监控
 	WinAutoRun   bool   `json:"autostart_windows"`
 	AutoCheckUpd bool   `json:"auto_check_update"`
@@ -23,6 +24,7 @@ func defaultConfig() Config {
 	return Config{
 		SettleSec:    3,
 		AutoCheckUpd: true,
+		ByMonth:      true,
 		RulesPath:    filepath.Join(appDir(), "rules.txt"),
 		Filter:       "",
 	}
@@ -45,6 +47,13 @@ func loadConfig() Config {
 	c := defaultConfig()
 	if b, err := os.ReadFile(configPath()); err == nil {
 		_ = json.Unmarshal(b, &c)
+		// 老版本配置里没有 by_month 这一项：默认开启按月份归档
+		var raw map[string]json.RawMessage
+		if json.Unmarshal(b, &raw) == nil {
+			if _, ok := raw["by_month"]; !ok {
+				c.ByMonth = true
+			}
+		}
 	}
 	if c.SettleSec < 1 || c.SettleSec > 60 {
 		c.SettleSec = 3
