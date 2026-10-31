@@ -85,15 +85,19 @@ const (
 	wsMaximizeBox = 0x00010000
 	wsMinimizeBox = 0x00020000
 
-	esAutoHScroll = 0x0080
-	bsPushButton  = 0x00000000
-	bsAutoCheck   = 0x00000003
-	lbsNoIntegral = 0x00000100
-	esMultiline   = 0x00000004
-	esAutoVScroll = 0x00000040
-	esReadOnly    = 0x00000800
-	emSetSel      = 0x00B1
-	emScrollCaret = 0x00B7
+	esAutoHScroll         = 0x0080
+	bsPushButton          = 0x00000000
+	bsAutoCheck           = 0x00000003
+	lbsNoIntegral         = 0x00000100
+	esMultiline           = 0x00000004
+	esAutoVScroll         = 0x00000040
+	esReadOnly            = 0x00000800
+	emSetSel              = 0x00B1
+	emLineScroll          = 0x00B6
+	emGetLineCount        = 0x00BA
+	emGetFirstVisibleLine = 0x00CE
+	emReplaceSel          = 0x00C2
+	emScrollCaret         = 0x00B7
 
 	wmCreate         = 0x0001
 	wmDestroy        = 0x0002
@@ -242,6 +246,7 @@ type guiApp struct {
 	sectionLabels                                     []syscall.Handle
 	allButtons                                        []syscall.Handle
 	minimized                                         bool
+	logLines                                          int
 	logBuf                                            []string
 	router                                            *Router
 	rulesMod                                          time.Time
@@ -783,16 +788,63 @@ func (a *guiApp) drain() {
 
 func (a *guiApp) appendLog(line string) {
 	a.logBuf = append(a.logBuf, line)
+	trimmed := false
 	if len(a.logBuf) > 400 {
 		a.logBuf = append([]string(nil), a.logBuf[len(a.logBuf)-400:]...)
+		trimmed = true
 	}
 	if a.hLog == 0 {
 		return // 控件没建起来，别去碰它
 	}
-	a.setText(a.hLog, strings.Join(a.logBuf, "\r\n"))
-	// 光标移到末尾并滚动（这两个消息不带指针，安全）
-	pSendMessageW.Call(uintptr(a.hLog), emSetSel, 0x7FFFFFFF, 0x7FFFFFFF)
-	pSendMessageW.Call(uintptr(a.hLog), emScrollCaret, 0, 0)
+
+	// 用户往上翻看历史时，不要每条新日志都把他拽回底部
+	atBottom := a.logAtBottom()
+	firstVisible := a.logFirstVisible()
+
+	if trimmed || a.logLines == 0 {
+		a.setText(a.hLog, strings.Join(a.logBuf, "\r\n"))
+		// 整体重写会把滚动位置复位，按原来位置还原
+		if !trimmed && firstVisible > 0 {
+			pSendMessageW.Call(uintptr(a.hLog), emLineScroll, 0, uintptr(firstVisible))
+		}
+	} else {
+		// 只追加一行：不重写已有内容，不打断滚动，也不会闪烁
+		txt := line
+		if len(a.logBuf) > 1 {
+			txt = "\r\n" + line
+		}
+		p, _ := syscall.UTF16PtrFromString(txt)
+		pSendMessageW.Call(uintptr(a.hLog), emSetSel, 0x7FFFFFFF, 0x7FFFFFFF)
+		pSendMessageW.Call(uintptr(a.hLog), emReplaceSel, uintptr(unsafe.Pointer(p)), 0)
+		runtime.KeepAlive(p)
+	}
+	a.logLines = len(a.logBuf)
+
+	if atBottom {
+		// 原来就在底部才跟着滚
+		pSendMessageW.Call(uintptr(a.hLog), emSetSel, 0x7FFFFFFF, 0x7FFFFFFF)
+		pSendMessageW.Call(uintptr(a.hLog), emScrollCaret, 0, 0)
+	}
+}
+
+// logFirstVisible 当前可见的第一行行号。
+func (a *guiApp) logFirstVisible() int32 {
+	r, _, _ := pSendMessageW.Call(uintptr(a.hLog), emGetFirstVisibleLine, 0, 0)
+	return int32(r)
+}
+
+// logAtBottom 判断日志框是否已经滚到底（差一两行也算到底）。
+func (a *guiApp) logAtBottom() bool {
+	total, _, _ := pSendMessageW.Call(uintptr(a.hLog), emGetLineCount, 0, 0)
+	if int32(total) <= 0 {
+		return true
+	}
+	first := a.logFirstVisible()
+	visible := int32(a.px(250) / a.px(20)) // 日志框高度约 250，行高约 20
+	if visible < 3 {
+		visible = 3
+	}
+	return first+visible >= int32(total)-1
 }
 
 func (a *guiApp) setStatus(s string) {

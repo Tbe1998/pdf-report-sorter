@@ -42,6 +42,7 @@ const (
 	dtSingle    = 0x00000020
 	dtEndEllip  = 0x00008000
 	transparent = 1
+	opaqueBk    = 2
 )
 
 var (
@@ -262,11 +263,15 @@ func (a *guiApp) drawButton(dis *drawItem) {
 // ctlColor 处理静态文字 / 只读编辑框的底色与字色。
 func (a *guiApp) ctlColorStatic(hdc uintptr, hwnd syscall.Handle) uintptr {
 	t := &a.th
-	pSetBkMode.Call(hdc, transparent)
+	// 日志是多行只读 EDIT：必须用不透明背景，否则滚动/重绘时旧文字擦不掉，
+	// 屏幕上会出现两行文字叠在一起的残影。静态文字才用透明背景。
 	if hwnd == a.hLog {
+		pSetBkMode.Call(hdc, opaqueBk)
+		pSetBkColor.Call(hdc, uintptr(clrCard))
 		pSetTextColor.Call(hdc, uintptr(clrInk))
 		return t.brCard
 	}
+	pSetBkMode.Call(hdc, transparent)
 	if hwnd == a.hStatus {
 		pSetTextColor.Call(hdc, uintptr(clrMuted))
 		return t.brBg
