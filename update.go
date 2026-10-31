@@ -17,7 +17,7 @@ import (
 )
 
 // 当前版本号。发布新版本时改这里。
-const appVersion = "1.2.2"
+const appVersion = "1.2.3"
 
 // defaultUpdateURL 是内置的更新地址：界面上不显示、也无法修改。
 // 发布新版本：把 PDFFolderMover-v<版本>.zip 和 latest.json 传到

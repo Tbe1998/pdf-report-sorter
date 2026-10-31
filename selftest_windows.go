@@ -92,8 +92,9 @@ func runSelfTest(console bool) {
 	check(movedA, "「甲项目」的日报被分到项目甲文件夹")
 	if movedA {
 		b, err := os.ReadFile(filepath.Join(projA, nameA))
-		check(err == nil && strings.HasPrefix(string(b), "%PDF-1.7") && len(b) == 200010,
-			fmt.Sprintf("移动后内容完整（%d 字节）", len(b)))
+		want := len("%PDF-1.7\n") + 200000 // 9 + 200000 = 200009
+		check(err == nil && strings.HasPrefix(string(b), "%PDF-1.7") && len(b) == want,
+			fmt.Sprintf("移动后内容完整（%d/%d 字节）", len(b), want))
 	}
 
 	// 第二份，走另一个项目
