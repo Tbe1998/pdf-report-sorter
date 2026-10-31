@@ -60,6 +60,10 @@ Windows 单文件 exe · 零依赖 · 中文界面 · 托盘后台 · 自动更�
 - 目标文件夹不存在 → 跳过并记日志，不丢文件；
 - 规则文件保存后约 2 秒自动重载，也可以点"重新加载"。
 
+## 下载
+
+[Releases](https://github.com/Tbe1998/pdf-report-sorter/releases) 下载 `PDFReportSorter-v1.2.2.zip`（内含主程序、使用说明、规则示例、源码），解压即用，无需安装任何运行库。
+
 ## 使用
 
 1. 下载 Release 里的 zip，解压到任意目录（建议不要放在 C 盘根目录）；
