@@ -2,6 +2,8 @@
 
 <img src="docs/logo-512.png" width="120" alt="logo">
 
+[![build](https://github.com/Tbe1998/pdf-report-sorter/actions/workflows/build.yml/badge.svg)](https://github.com/Tbe1998/pdf-report-sorter/actions/workflows/build.yml)
+
 # PDF 日志分拣助手
 
 **把"打印出来的 PDF 日报"自动分到对应项目的文件夹里——等到文件真正写完再动手。**
@@ -60,10 +62,6 @@ Windows 单文件 exe · 零依赖 · 中文界面 · 托盘后台 · 自动更�
 - 目标文件夹不存在 → 跳过并记日志，不丢文件；
 - 规则文件保存后约 2 秒自动重载，也可以点"重新加载"。
 
-## 下载
-
-[Releases](https://github.com/Tbe1998/pdf-report-sorter/releases) 下载 `PDFReportSorter-v1.2.2.zip`（内含主程序、使用说明、规则示例、源码），解压即用，无需安装任何运行库。
-
 ## 使用
 
 1. 下载 Release 里的 zip，解压到任意目录（建议不要放在 C 盘根目录）；
@@ -89,6 +87,17 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-H windowsg
 ```
 
 `build.bat` 是 Windows 本机一键打包脚本。
+
+## 自动构建（GitHub Actions）
+
+推送到 `main` 或提 PR 时，[build.yml](.github/workflows/build.yml) 会自动：
+
+1. `go vet` + `go test ./...`（Ubuntu，覆盖跨平台逻辑）；
+2. Windows 上安装 `rsrc` 嵌入图标，先编译控制台版跑 `--selftest-console` 冒烟自检；
+3. 编译无窗口主程序，连同使用说明打包成 zip 作为构建产物；
+4. 打 `v*` 标签时自动把 zip 挂到 Release（没有对应 Release 会自动创建）。
+
+本地模拟流程见 `使用说明.txt`。
 
 ## 目录结构
 

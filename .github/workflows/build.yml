@@ -1,0 +1,87 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # 1) 单元测试：在 Linux 上跑跨平台逻辑（路由、稳定性判定、更新校验、启动决策）
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: 单元测试
+        run: go test -v ./...
+
+  # 2) Windows 构建：嵌入图标 → 控制台版自检 → GUI 版打包
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: 安装 rsrc（用于把 app.ico 嵌进 exe）
+        run: go install github.com/akavel/rsrc@latest
+
+      - name: 生成图标资源
+        run: rsrc -ico app.ico -o rsrc_windows_amd64.syso
+
+      # 控制台版：自检输出可见，退出码 0=通过
+      - name: 构建自检版
+        run: go build -trimpath -ldflags "-s -w" -o selftest.exe .
+
+      - name: 冒烟自检（临时目录模拟"边写边监听"，不碰真实文件夹）
+        run: .\selftest.exe --selftest-console
+
+      # 正式版：无控制台窗口
+      - name: 构建主程序
+        run: go build -trimpath -ldflags "-H windowsgui -s -w" -o PDFReportSorter.exe .
+
+      - name: 打包
+        shell: pwsh
+        run: |
+          $ver = 'dev'
+          if ($env:GITHUB_REF -like 'refs/tags/v*') { $ver = $env:GITHUB_REF -replace 'refs/tags/v', '' }
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item PDFReportSorter.exe, 使用说明.txt, 规则示例.txt, README.md out\
+          Compress-Archive -Path out\* -DestinationPath "PDFReportSorter-v$ver.zip" -Force
+          Get-Item "PDFReportSorter-v$ver.zip" | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PDFReportSorter-windows-x64
+          path: PDFReportSorter-*.zip
+          retention-days: 30
+
+      # 3) 打 tag 时自动挂到 Release
+      - name: 上传到 Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view ${{ github.ref_name }} 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}" --notes "由 GitHub Actions 自动构建"
+          }
+          gh release upload ${{ github.ref_name }} (Get-Item PDFReportSorter-*.zip).Name --clobber
