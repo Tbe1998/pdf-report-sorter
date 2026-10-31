@@ -105,18 +105,20 @@ func runSelfTest(console bool) {
 	}
 
 	// 第二份，走另一个项目
+	monthB := filepath.Join(projB, "26.10")
 	nameB := "乙项目监测日报2026-10-30.pdf"
 	_ = os.WriteFile(filepath.Join(src, nameB), []byte("%PDF-1.7 B"), 0o644)
 	deadline = time.Now().Add(8 * time.Second)
 	movedB := false
 	for time.Now().Before(deadline) {
-		if _, err := os.Stat(filepath.Join(projB, nameB)); err == nil {
+		if _, err := os.Stat(filepath.Join(monthB, nameB)); err == nil {
 			movedB = true
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	check(movedB, "「乙项目」的日报被分到项目乙文件夹（不是同一个目录）")
+	check(movedB, "「乙项目」的日报被分到项目乙\\26.10（不是同一个目录）")
+	check(!existsFile(filepath.Join(projA, "26.10", nameB)), "乙项目没有误入甲项目文件夹")
 
 	check(existsFile(oldFile), "启动前就有的 PDF 没有被乱搬")
 	check(!existsFile(filepath.Join(projA, "启动前就有的甲项目.pdf")), "启动前的旧文件没有进项目文件夹")
