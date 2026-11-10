@@ -383,3 +383,82 @@ func TestDecideStartup(t *testing.T) {
 		t.Fatalf("手动模式：分拣=%v 检查=%v", start, check)
 	}
 }
+
+// 没匹配规则的文件：旧实现每次扫描（0.5 秒）都给 skipped +1，
+// 一个文件放一分钟能刷出 120 次。现在每个文件只计一次。
+func TestUnmatchedCountedOnce(t *testing.T) {
+	m, r, src, root, _ := newTestMover(t, 0, "日报 => dst", "")
+	dst := mkdir(t, filepath.Join(root, "dst"))
+	r.rules[0].Dest = dst
+	write(t, filepath.Join(src, "无关键词.pdf"), "%PDF-1.4")
+
+	base := time.Now()
+	for i := 0; i < 5; i++ {
+		m.scanOnce(base.Add(time.Duration(i) * time.Second))
+	}
+	if _, failed, skipped := m.Stats(); skipped != 1 || failed != 0 {
+		t.Fatalf("未匹配文件被重复计数：skipped=%d failed=%d（期望 1/0）", skipped, failed)
+	}
+	if exists(filepath.Join(src, "无关键词.pdf")) != true {
+		t.Fatal("未匹配的文件不应被搬走")
+	}
+}
+
+// 目标文件夹不存在：同样只能计一次失败，不能按扫描次数累加。
+func TestMissingDestCountedOnce(t *testing.T) {
+	m, r, src, root, _ := newTestMover(t, 0, "日报 => dst", "")
+	r.rules[0].Dest = filepath.Join(root, "不存在")
+	write(t, filepath.Join(src, "项目 日报.pdf"), "%PDF-1.4")
+
+	base := time.Now()
+	for i := 0; i < 5; i++ {
+		m.scanOnce(base.Add(time.Duration(i) * time.Second))
+	}
+	if _, failed, _ := m.Stats(); failed != 1 {
+		t.Fatalf("目标缺失被重复计数：failed=%d（期望 1）", failed)
+	}
+}
+
+// 规则文件被改动后，监听中应自动重载，不需要重启。
+func TestRulesHotReload(t *testing.T) {
+	m, r, src, root, _ := newTestMover(t, 0, "甲 => dst", "")
+	dst := mkdir(t, filepath.Join(root, "dst"))
+	_ = src
+	var got []string
+	m.logf = func(s string) { got = append(got, s) }
+
+	rulesFile := r.Path()
+	write(t, rulesFile, "甲 => "+dst+"\n")
+	if _, err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	// 换一条完全不同的规则，并把修改时间推到将来确保被检测到
+	write(t, rulesFile, "乙 => "+dst+"\n")
+	future := time.Now().Add(2 * time.Second)
+	if err := os.Chtimes(rulesFile, future, future); err != nil {
+		t.Fatal(err)
+	}
+
+	m.scanOnce(time.Now())
+	if r.Count() != 1 {
+		t.Fatalf("规则条数=%d，期望 1", r.Count())
+	}
+	if kw := r.Rules()[0].Keywords[0]; kw != "乙" {
+		t.Fatalf("规则没有热重载，当前关键词=%q", kw)
+	}
+	joined := strings.Join(got, "\n")
+	if !strings.Contains(joined, "规则文件已更新") {
+		t.Fatalf("没有输出热重载日志：%v", got)
+	}
+}
+
+// 关键词大小写不敏感必须仍然成立（预计算小写后不能丢这个能力）。
+func TestResolveCaseInsensitive(t *testing.T) {
+	r := NewRouter("")
+	rs, _ := ParseRules("DailyReport => X\n")
+	r.rules = rs
+	dest, _, ok := r.Resolve("工程DAILYREPORT2026.pdf")
+	if !ok || dest != "X" {
+		t.Fatalf("大小写不敏感匹配失败：%q %v", dest, ok)
+	}
+}
