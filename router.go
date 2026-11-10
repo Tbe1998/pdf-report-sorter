@@ -18,6 +18,7 @@ import (
 type Rule struct {
 	Keywords []string
 	Dest     string
+	lower    []string // 预计算的小写关键词，避免每次扫描重复 ToLower
 }
 
 type Router struct {
@@ -173,9 +174,18 @@ func ParseRules(content string) ([]Rule, []string) {
 			errs = append(errs, fmt.Sprintf("第 %d 行没有关键词", i+1))
 			continue
 		}
-		rules = append(rules, Rule{Keywords: kws, Dest: dest})
+		rules = append(rules, Rule{Keywords: kws, Dest: dest, lower: lowerAll(kws)})
 	}
 	return rules, errs
+}
+
+// lowerAll 预先把关键词转成小写，Resolve 里就只对文件名做一次 ToLower。
+func lowerAll(kws []string) []string {
+	out := make([]string, len(kws))
+	for i, k := range kws {
+		out[i] = strings.ToLower(k)
+	}
+	return out
 }
 
 // Resolve 决定一个文件名该去哪个目录。
@@ -187,13 +197,18 @@ func (r *Router) Resolve(name string) (string, string, bool) {
 	lower := strings.ToLower(name)
 	bestIdx, bestLen, bestKw := -1, 0, ""
 	for i, ru := range r.rules {
-		for _, kw := range ru.Keywords {
+		kws := ru.lower
+		if len(kws) != len(ru.Keywords) {
+			// 手工构造的 Rule（测试/老代码）没有预计算，回退现场转小写
+			kws = lowerAll(ru.Keywords)
+		}
+		for j, kw := range kws {
 			if kw == "" {
 				continue
 			}
-			if len(kw) > bestLen && strings.Contains(lower, strings.ToLower(kw)) {
+			if len(kw) > bestLen && strings.Contains(lower, kw) {
 				// 用字节长度比较，中文关键词更长的更精确；同长时先出现的优先
-				bestIdx, bestLen, bestKw = i, len(kw), kw
+				bestIdx, bestLen, bestKw = i, len(kw), ru.Keywords[j]
 			}
 		}
 	}
