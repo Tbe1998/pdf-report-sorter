@@ -31,10 +31,11 @@ type Mover struct {
 
 // fileState 记录某个文件上一次观测到的形态。
 type fileState struct {
-	size  int64
-	mod   time.Time
-	since time.Time // 大小/修改时间与当前一致的起始时刻
-	skip  bool      // 启动时就已存在、且用户选择不搬移的文件
+	size    int64
+	mod     time.Time
+	since   time.Time // 大小/修改时间与当前一致的起始时刻
+	skip    bool      // 启动时就已存在、且用户选择不搬移的文件
+	counted bool      // 未匹配/目标缺失已计入统计，避免每次扫描重复 +1
 }
 
 func NewMover() *Mover {
@@ -179,10 +180,21 @@ func (m *Mover) scanOnce(now time.Time) {
 	}()
 
 	m.mu.Lock()
-	src, router, byMonth := m.src, m.router, m.byMonth
+	src, router, byMonth, settle := m.src, m.router, m.byMonth, m.settle
 	m.mu.Unlock()
 	if router == nil {
 		return
+	}
+	// 规则文件改了（用户手动编辑 rules.txt / 界面里保存规则）就自动重载，
+	// 不必重启监听。每次扫描 stat 一次，开销可以忽略。
+	if router.Path() != "" {
+		if st, err := os.Stat(router.Path()); err == nil && st.ModTime().After(router.ModTime()) {
+			if n, err := router.Load(); err == nil {
+				m.logf(fmt.Sprintf("规则文件已更新，重新加载 %d 条规则", n))
+			} else {
+				m.logf("规则文件读取失败，继续用旧规则：" + err.Error())
+			}
+		}
 	}
 
 	entries, err := os.ReadDir(src)
@@ -223,9 +235,10 @@ func (m *Mover) scanOnce(now time.Time) {
 		if info.Size() != prev.size || !info.ModTime().Equal(prev.mod) {
 			// 还在写：重置稳定计时。
 			prev.size, prev.mod, prev.since = info.Size(), info.ModTime(), now
+			prev.counted = false
 			continue
 		}
-		if now.Sub(prev.since) < m.settle {
+		if now.Sub(prev.since) < settle {
 			continue
 		}
 		// 稳定性达标，再确认没有进程独占该文件（打印驱动/阅读器仍持有句柄）。
@@ -243,9 +256,14 @@ func (m *Mover) scanOnce(now time.Time) {
 				m.warned["nomatch:"+name] = true
 				m.logf("没有匹配的规则，留在原地：" + name)
 			}
-			m.mu.Lock()
-			m.skipped++
-			m.mu.Unlock()
+			// 每个文件只计一次；旧实现在每次扫描（0.5 秒）都 +1，
+			// 一个没匹配的 PDF 放一分钟就能把"跳过"刷到 120 次。
+			if !prev.counted {
+				prev.counted = true
+				m.mu.Lock()
+				m.skipped++
+				m.mu.Unlock()
+			}
 			continue
 		}
 		if st, err := os.Stat(destDir); err != nil || !st.IsDir() {
@@ -253,9 +271,12 @@ func (m *Mover) scanOnce(now time.Time) {
 				m.warned["nodir:"+name] = true
 				m.logf(fmt.Sprintf("目标文件夹不存在，跳过：%s（%s）", destDir, name))
 			}
-			m.mu.Lock()
-			m.failed++
-			m.mu.Unlock()
+			if !prev.counted {
+				prev.counted = true
+				m.mu.Lock()
+				m.failed++
+				m.mu.Unlock()
+			}
 			continue
 		}
 
@@ -271,7 +292,7 @@ func (m *Mover) scanOnce(now time.Time) {
 				continue
 			}
 			destDir = monthDir
-			destLabel = destLabel + "\\" + filepath.Base(monthDir)
+			destLabel = filepath.Join(destLabel, filepath.Base(monthDir))
 			if !fromName && !m.warned["mtime:"+name] {
 				m.warned["mtime:"+name] = true
 				m.logf(fmt.Sprintf("文件名里没有日期，按文件时间归到 %s：%s",
